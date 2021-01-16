@@ -102,12 +102,12 @@ class T5Siamese(T5PreTrainedModel):
         torch.cuda.empty_cache()
 
     def encode_left(self,
-                input_left_ids,
-                attention_mask_left):
+                input_ids,
+                attention_mask):
 
         output_left = self.encoder_left(
-            input_ids=input_left_ids,
-            attention_mask=attention_mask_left,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             return_dict=True
         )
         emb_left = output_left.last_hidden_state
@@ -115,12 +115,12 @@ class T5Siamese(T5PreTrainedModel):
         return emb_left
 
     def encode_right(self,
-                input_right_ids,
-                attention_mask_right):
+                input_ids,
+                attention_mask):
 
         output_right = self.encoder_right(
-            input_ids=input_right_ids,
-            attention_mask=attention_mask_right,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             return_dict=True
         )
         emb_right = output_right.last_hidden_state
@@ -136,23 +136,16 @@ class T5Siamese(T5PreTrainedModel):
         if input_left_ids.shape[0] != input_right_ids.shape[0]:
             raise Exception('In cosine similarity you should pass equal size batches')
 
-        output_left = self.encoder_left(
+        emb_left = self.encode_left(
             input_ids=input_left_ids,
             attention_mask=attention_mask_left,
-            return_dict=True
         )
         # with torch.no_grad(): # даёт ошибку при тренировке в режиме cpu_offload
-        output_right = self.encoder_right(
+        emb_right = self.encode_right(
             input_ids=input_right_ids,
             attention_mask=attention_mask_right,
-            return_dict=True
         )
 
-        # get the final hidden states
-        emb_left = output_left.last_hidden_state  # * batch_left_tensor["attention_mask"]
-        emb_right = output_right.last_hidden_state  # * batch_right_tensor["attention_mask"]
-        emb_left = torch.mean(emb_left, dim=1)
-        emb_right = torch.mean(emb_right, dim=1)
         cos = self.cos(emb_left, emb_right)
 
         if labels is not None:
