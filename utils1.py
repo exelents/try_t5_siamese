@@ -211,7 +211,7 @@ class SiameseDataset(AbstractSiameseDataset):
         return {
                    "right_texts": tgt_line,
                    "left_texts": source_line,
-                   "labels": int(labels),
+                   "labels": float(labels),
                    "id": index - 1
         }
 

@@ -111,7 +111,9 @@ class T5Siamese(T5PreTrainedModel):
             return_dict=True
         )
         emb_left = output_left.last_hidden_state
-        emb_left = torch.mean(emb_left, dim=1)
+        attention_mask_expand = attention_mask.unsqueeze(-1)
+        emb_left = emb_left * attention_mask_expand
+        emb_left = emb_left.sum(1) / attention_mask_expand.sum(1)
         return emb_left
 
     def encode_right(self,
@@ -124,7 +126,9 @@ class T5Siamese(T5PreTrainedModel):
             return_dict=True
         )
         emb_right = output_right.last_hidden_state
-        emb_right = torch.mean(emb_right, dim=1)
+        attention_mask_expand = attention_mask.unsqueeze(-1)
+        emb_right = emb_right * attention_mask_expand
+        emb_right = emb_right.sum(1) / attention_mask_expand.sum(1)
         return emb_right
 
     def forward(self,
@@ -148,10 +152,11 @@ class T5Siamese(T5PreTrainedModel):
 
         cos = self.cos(emb_left, emb_right)
 
+        out = {'cos': cos}
         if labels is not None:
             cross_entropy_loss = nn.BCEWithLogitsLoss()
             loss = cross_entropy_loss(cos, labels)
-            return loss, cos
+            out['loss'] = loss
 
-        return cos
+        return out
 
