@@ -3,3 +3,6 @@ models
 runs
 __pycache__
 qasc
+results
+output_dir
+qasc.tar.gz
