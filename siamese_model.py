@@ -11,11 +11,10 @@ from transformers.utils.model_parallel_utils import assert_device_map, get_devic
 
 
 class T5Siamese(T5PreTrainedModel):
-    def __init__(self, encoder_left=None, encoder_right=None, embeddings=None, config=None):
+    def __init__(self, encoder_left=None, encoder_right=None, config=None):
         super(T5Siamese, self).__init__(config)
         self.encoder_left = encoder_left
         self.encoder_right = encoder_right
-        self.embeddings = embeddings
         self.cos = nn.CosineSimilarity(dim=1)
         self.config = config
 
@@ -76,7 +75,6 @@ class T5Siamese(T5PreTrainedModel):
         os.makedirs(left_dir, exist_ok=True)
         os.makedirs(right_dir, exist_ok=True)
 
-        # torch.save(self.embeddings.state_dict(), EMBEDDINGS_OUTPUT_FILE)
         self.encoder_left.save_pretrained(left_dir)
         self.encoder_right.save_pretrained(right_dir)
         self.config.save_pretrained(MODEL_OUTPUT)
@@ -144,12 +142,13 @@ class T5Siamese(T5PreTrainedModel):
             input_ids=input_left_ids,
             attention_mask=attention_mask_left,
         )
-        # with torch.no_grad(): # даёт ошибку при тренировке в режиме cpu_offload
+
         emb_right = self.encode_right(
             input_ids=input_right_ids,
             attention_mask=attention_mask_right,
         )
 
+        # get the final hidden states
         cos = self.cos(emb_left, emb_right)
 
         out = {'cos': cos}

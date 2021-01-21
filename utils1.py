@@ -34,6 +34,7 @@ from torch.utils.data import Dataset, Sampler
 # from sentence_splitter import add_newline_to_end_of_each_sentence
 from transformers import BartTokenizer, EvalPrediction, PreTrainedTokenizer
 from transformers.file_utils import cached_property
+from torch.utils.data import  RandomSampler, DistributedSampler
 
 try:
     from fairseq.data.data_utils import batch_by_size
@@ -163,9 +164,9 @@ class AbstractSiameseDataset(Dataset):
 
     def make_sortish_sampler(self, batch_size, distributed=False, shuffle=True, **kwargs):
         if distributed:
-            return DistributedSortishSampler(self, batch_size, shuffle=shuffle, **kwargs)
+            return DistributedSampler(self, batch_size, shuffle=shuffle, **kwargs)
         else:
-            return SortishSampler(self.src_lens, batch_size, shuffle=shuffle)
+            return RandomSampler(self.src_lens, batch_size, shuffle=shuffle)
 
     def make_dynamic_sampler(self, max_tokens_per_batch=1024, **kwargs):
         assert FAIRSEQ_AVAILABLE, "Dynamic batch size requires `pip install fairseq`"
@@ -211,7 +212,7 @@ class SiameseDataset(AbstractSiameseDataset):
         return {
                    "right_texts": tgt_line,
                    "left_texts": source_line,
-                   "labels": float(labels),
+                   "labels": int(labels),
                    "id": index - 1
         }
 
@@ -252,7 +253,7 @@ class SiameseDataCollator:
         ), f"pad_token_id is not defined for ({self.tokenizer.__class__.__name__}), it must be defined."
         self.data_args = data_args
         self.tpu_num_cores = tpu_num_cores
-        self.dataset_kwargs = {"add_prefix_space": True} if isinstance(tokenizer, BartTokenizer) else {}
+        #self.dataset_kwargs = {"add_prefix_space": True} if isinstance(tokenizer, BartTokenizer) else {}
         # if data_args.src_lang is not None:
         #     self.dataset_kwargs["src_lang"] = data_args.src_lang
         # if data_args.tgt_lang is not None:
@@ -280,28 +281,6 @@ class SiameseDataCollator:
         batch_encoding['labels'] = torch.from_numpy(np.array(labels, dtype=np.float))
 
         return batch_encoding
-
-    def _shift_right_t5(self, input_ids):
-        # shift inputs to the right
-        shifted_input_ids = input_ids.new_zeros(input_ids.shape)
-        shifted_input_ids[..., 1:] = input_ids[..., :-1].clone()
-        shifted_input_ids[..., 0] = self.pad_token_id
-        return shifted_input_ids
-
-    def _encode(self, batch) -> Dict[str, torch.Tensor]:
-        print(batch)
-        print("OLOLO")
-        quit()
-        batch_encoding = self.tokenizer.prepare_seq2seq_batch(
-            [x["src_texts"] for x in batch], # x["src_texts"]
-            tgt_texts=[x["tgt_texts"] for x in batch],
-            max_length=self.data_args.max_source_length,
-            max_target_length=self.data_args.max_target_length,
-            padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
-            return_tensors="pt",
-            **self.dataset_kwargs,
-        )
-        return batch_encoding.data
 
 
 class SortishSampler(Sampler):
