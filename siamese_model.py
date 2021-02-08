@@ -10,12 +10,20 @@ from transformers import T5Tokenizer, T5Config
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
 
 
+def cosine_similarity_dim1(a: torch.Tensor, b: torch.Tensor, eps=1e-5):
+    dot_prod = torch.einsum('bn,bn->b', a, b)
+    vecs_lens = torch.norm(a, dim=1) * torch.norm(b, dim=1)
+    epsv = torch.Tensor([eps] * vecs_lens.shape[0])
+    cos = dot_prod / torch.where(torch.less(vecs_lens, epsv), epsv, vecs_lens)
+    return cos
+
+
 class T5Siamese(T5PreTrainedModel):
     def __init__(self, encoder_left=None, encoder_right=None, config=None):
         super(T5Siamese, self).__init__(config)
         self.encoder_left = encoder_left
         self.encoder_right = encoder_right
-        self.cos = nn.CosineSimilarity(dim=1)
+        self.cos = nn.CosineSimilarity(dim=1, eps=1e-5)
         self.config = config
 
     @staticmethod
