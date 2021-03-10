@@ -34,7 +34,8 @@ from torch.utils.data import Dataset, Sampler
 # from sentence_splitter import add_newline_to_end_of_each_sentence
 from transformers import BartTokenizer, EvalPrediction, PreTrainedTokenizer
 from transformers.file_utils import cached_property
-from torch.utils.data import  RandomSampler, DistributedSampler
+from torch.utils.data import  DistributedSampler
+from torch.utils.data.sampler import RandomSampler
 
 try:
     from fairseq.data.data_utils import batch_by_size
@@ -166,7 +167,7 @@ class AbstractSiameseDataset(Dataset):
         if distributed:
             return DistributedSampler(self, batch_size, shuffle=shuffle, **kwargs)
         else:
-            return RandomSampler(self.src_lens, batch_size, shuffle=shuffle)
+            return RandomSampler(self)  #self.src_lens, batch_size, shuffle=shuffle
 
     def make_dynamic_sampler(self, max_tokens_per_batch=1024, **kwargs):
         assert FAIRSEQ_AVAILABLE, "Dynamic batch size requires `pip install fairseq`"
