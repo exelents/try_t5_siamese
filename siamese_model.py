@@ -10,6 +10,20 @@ from transformers import T5Tokenizer, T5Config
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
 
 
+def unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
+    """
+    Recursively unwraps a model from potential containers (as used in distributed training).
+
+    Args:
+        model (:obj:`torch.nn.Module`): The model to unwrap.
+    """
+    # since there could be multiple levels of wrapping, unwrap recursively
+    if hasattr(model, "module"):
+        return unwrap_model(model.module)
+    else:
+        return model
+
+
 def cosine_similarity_dim1(a: torch.Tensor, b: torch.Tensor, eps=1e-5):
     dot_prod = torch.einsum('bn,bn->b', a, b)
     vecs_lens = torch.norm(a, dim=1) * torch.norm(b, dim=1)
@@ -79,16 +93,14 @@ class T5Siamese(T5PreTrainedModel):
 
     def save_pretrained(self, model_path, state_dict=None, **kwargs):
         MODEL_OUTPUT = model_path
-        if state_dict:
-            torch.save(state_dict, os.path.join(MODEL_OUTPUT, 'state_dict.bin'))
 
         left_dir = os.path.join(MODEL_OUTPUT, 'left')
         right_dir = os.path.join(MODEL_OUTPUT, 'right')
         os.makedirs(left_dir, exist_ok=True)
         os.makedirs(right_dir, exist_ok=True)
 
-        self.encoder_left.save_pretrained(left_dir)
-        self.encoder_right.save_pretrained(right_dir)
+        unwrap_model(self.encoder_left).save_pretrained(left_dir)
+        unwrap_model(self.encoder_right).save_pretrained(right_dir)
         self.config.save_pretrained(MODEL_OUTPUT)
 
     def parallelize(self, device_map=None):
