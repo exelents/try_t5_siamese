@@ -34,8 +34,8 @@ from torch.utils.data import Dataset, Sampler
 # from sentence_splitter import add_newline_to_end_of_each_sentence
 from transformers import BartTokenizer, EvalPrediction, PreTrainedTokenizer
 from transformers.file_utils import cached_property
-from torch.utils.data import  DistributedSampler
-from torch.utils.data.sampler import RandomSampler
+from torch.utils.data import RandomSampler, DistributedSampler
+#from torch.utils.data.sampler import RandomSampler
 
 try:
     from fairseq.data.data_utils import batch_by_size
@@ -165,9 +165,9 @@ class AbstractSiameseDataset(Dataset):
 
     def make_sortish_sampler(self, batch_size, distributed=False, shuffle=True, **kwargs):
         if distributed:
-            return DistributedSampler(self, batch_size, shuffle=shuffle, **kwargs)
+            return DistributedSortishSampler(self, batch_size, shuffle=shuffle, **kwargs)
         else:
-            return RandomSampler(self)  #self.src_lens, batch_size, shuffle=shuffle
+            return SortishSampler(self.src_lens, batch_size, shuffle=shuffle)
 
     def make_dynamic_sampler(self, max_tokens_per_batch=1024, **kwargs):
         assert FAIRSEQ_AVAILABLE, "Dynamic batch size requires `pip install fairseq`"
@@ -208,12 +208,14 @@ class SiameseDataset(AbstractSiameseDataset):
         index = index + 1  # linecache starts at 1
         line = linecache.getline(str(self.src_file), index).rstrip("\n")
         source_line, tgt_line, labels = tuple(line.split("\t"))
+        labels = int(labels)
+        labels = -1 if labels == 0 else labels
         assert source_line, f"empty source line for index {index}"
         assert tgt_line, f"empty tgt line for index {index}"
         return {
                    "right_texts": tgt_line,
                    "left_texts": source_line,
-                   "labels": int(labels),
+                   "labels": labels,
                    "id": index - 1
         }
 

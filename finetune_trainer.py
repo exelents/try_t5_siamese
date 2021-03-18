@@ -212,7 +212,6 @@ def main():
     # )
 
     tokenizer, model = T5Siamese.from_pretrained(model_args.model_name_or_path, with_tokenizer=True)
-
     # use task specific params
     use_task_specific_params(model, data_args.task)
 

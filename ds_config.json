@@ -10,16 +10,19 @@
         "min_loss_scale": 1
     },
 
-   "zero_optimization": {
-       "stage": 2,
-       "allgather_partitions": true,
-       "allgather_bucket_size": 200000000,
-       "overlap_comm": true,
-       "reduce_scatter": true,
-       "reduce_bucket_size": 200000000,
-       "contiguous_gradients": true,
-       "cpu_offload": true
-   },
+    "zero_optimization": {
+        "stage": 3,
+        "cpu_offload": true,
+        "cpu_offload_params": true,
+        "overlap_comm": true,
+        "contiguous_gradients": true,
+        "stage3_max_live_parameters": 6000000,
+        "stage3_max_reuse_distance": 100000000,
+        "stage3_prefetch_bucket_size": 200000,
+        "stage3_param_persitance_threshold": 100000,
+        "reduce_bucket_size": 3000000,
+        "sub_group_size": 1e6
+    },
 
    "optimizer": {
      "type": "Adam",

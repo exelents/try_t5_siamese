@@ -23,8 +23,10 @@ class T5Siamese(T5PreTrainedModel):
         super(T5Siamese, self).__init__(config)
         self.encoder_left = encoder_left
         self.encoder_right = encoder_right
-        self.cos = nn.CosineSimilarity(dim=1, eps=1e-5)
+        self.cos = nn.CosineSimilarity(dim=1)
         self.config = config
+        self.model_parallel = False
+        self.loss_func = nn.CosineEmbeddingLoss()
 
     @staticmethod
     def init_from_base_t5_model(model_name_or_path='t5-base', output_root='./'):
@@ -75,8 +77,10 @@ class T5Siamese(T5PreTrainedModel):
                          encoder_right=encoder_right,
                          config=config)
 
-    def save_pretrained(self, model_path):
+    def save_pretrained(self, model_path, state_dict=None, **kwargs):
         MODEL_OUTPUT = model_path
+        if state_dict:
+            torch.save(state_dict, os.path.join(MODEL_OUTPUT, 'state_dict.bin'))
 
         left_dir = os.path.join(MODEL_OUTPUT, 'left')
         right_dir = os.path.join(MODEL_OUTPUT, 'right')
@@ -161,8 +165,7 @@ class T5Siamese(T5PreTrainedModel):
 
         out = {'cos': cos}
         if labels is not None:
-            cross_entropy_loss = nn.BCEWithLogitsLoss()
-            loss = cross_entropy_loss(cos, labels)
+            loss = self.loss_func(emb_left, emb_right, labels)
             out['loss'] = loss
 
         return out
