@@ -156,7 +156,7 @@ class AbstractSiameseDataset(Dataset):
 
     @staticmethod
     def get_char_lens(data_file):
-        return [len(x) for x in Path(data_file).open().readlines()]
+        return [len(x.split('\t')[0]) for x in Path(data_file).open().readlines()]
 
     @cached_property
     def tgt_lens(self):
