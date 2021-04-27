@@ -4,10 +4,21 @@ import json
 
 import torch
 from torch import nn
+from typing import Optional, Tuple
+from dataclasses import dataclass
 
 from transformers.models.t5.modeling_t5 import T5PreTrainedModel, T5EncoderModel
 from transformers import T5Tokenizer, T5Config
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
+from transformers.file_utils import ModelOutput
+
+
+@dataclass
+class T5SiameseModelOutput(ModelOutput):
+    loss: Optional[torch.FloatTensor] = None
+    left_embedding_vector: torch.FloatTensor = None
+    right_embedding_vector: torch.FloatTensor = None
+    cos: Optional[torch.FloatTensor] = None
 
 
 def unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
@@ -33,10 +44,10 @@ def cosine_similarity_dim1(a: torch.Tensor, b: torch.Tensor, eps=1e-5):
 
 
 class T5Siamese(T5PreTrainedModel):
-    def __init__(self, encoder_left=None, encoder_right=None, config=None):
+    def __init__(self, config=None):
         super(T5Siamese, self).__init__(config)
-        self.encoder_left = encoder_left
-        self.encoder_right = encoder_right
+        self.encoder_left = T5EncoderModel(config)
+        self.encoder_right = T5EncoderModel(config)
         self.cos = nn.CosineSimilarity(dim=1)
         self.config = config
         self.model_parallel = False
@@ -44,64 +55,19 @@ class T5Siamese(T5PreTrainedModel):
 
     @staticmethod
     def init_from_base_t5_model(model_name_or_path='t5-base', output_root='./'):
-        MODEL = model_name_or_path
-        MODEL_OUTPUT = output_root
-        EMBEDDINGS_OUTPUT_FILE = os.path.join(MODEL_OUTPUT, 'embedding.pth')
-        os.makedirs(MODEL_OUTPUT, exist_ok=True)
+        os.makedirs(output_root, exist_ok=True)
 
-        tokenizer = T5Tokenizer.from_pretrained(MODEL)
-        # model = T5ForConditionalGeneration.from_pretrained(MODEL)
-        model_left = T5EncoderModel.from_pretrained(MODEL)
-        model_right = T5EncoderModel.from_pretrained(MODEL)
-
-        left_dir = os.path.join(MODEL_OUTPUT, 'left')
-        right_dir = os.path.join(MODEL_OUTPUT, 'right')
-        os.makedirs(left_dir, exist_ok=True)
-        os.makedirs(right_dir, exist_ok=True)
+        tokenizer = T5Tokenizer.from_pretrained(model_name_or_path)
+        model_config = T5Config.from_pretrained(model_name_or_path)
 
         # torch.save(model.encoder.embed_tokens.state_dict(), EMBEDDINGS_OUTPUT_FILE)
-        model_left.save_pretrained(left_dir)
-        model_right.save_pretrained(right_dir)
-        tokenizer.save_pretrained(MODEL_OUTPUT)
-        model_right.config.save_pretrained(MODEL_OUTPUT)
+        tokenizer.save_pretrained(output_root)
 
-    @staticmethod
-    def from_pretrained(model_path, with_tokenizer=False):
-        MODEL_OUTPUT = model_path
-        EMBEDDINGS_OUTPUT_FILE = os.path.join(MODEL_OUTPUT, 'embedding.pth')
-
-        left_dir = os.path.join(MODEL_OUTPUT, 'left')
-        right_dir = os.path.join(MODEL_OUTPUT, 'right')
-
-        config_left = json.load(open(os.path.join(left_dir, 'config.json')))
-
-        # embedding = nn.Embedding(config_left['vocab_size'], config_left['d_model'])
-        # embedding.load_state_dict(torch.load(EMBEDDINGS_OUTPUT_FILE))
-        encoder_left = T5EncoderModel.from_pretrained(left_dir) #, embed_tokens=embedding
-        encoder_right = T5EncoderModel.from_pretrained(right_dir) #, embed_tokens=embedding
-        config = T5Config.from_pretrained(MODEL_OUTPUT)
-        if with_tokenizer:
-            tokenizer = T5Tokenizer.from_pretrained(MODEL_OUTPUT)
-
-            return tokenizer, T5Siamese(encoder_left=encoder_left,
-                                        encoder_right=encoder_right,
-                                        config=config)
-
-        return T5Siamese(encoder_left=encoder_left,
-                         encoder_right=encoder_right,
-                         config=config)
-
-    def save_pretrained(self, model_path, state_dict=None, **kwargs):
-        MODEL_OUTPUT = model_path
-
-        left_dir = os.path.join(MODEL_OUTPUT, 'left')
-        right_dir = os.path.join(MODEL_OUTPUT, 'right')
-        os.makedirs(left_dir, exist_ok=True)
-        os.makedirs(right_dir, exist_ok=True)
-
-        unwrap_model(self.encoder_left).save_pretrained(left_dir)
-        unwrap_model(self.encoder_right).save_pretrained(right_dir)
-        self.config.save_pretrained(MODEL_OUTPUT)
+        model = T5Siamese(config=model_config)
+        model.encoder_left = T5EncoderModel.from_pretrained(model_name_or_path)
+        model.encoder_right = T5EncoderModel.from_pretrained(model_name_or_path)
+        model.save_pretrained(output_root)
+        model_config.save_pretrained(output_root)
 
     def parallelize(self, device_map=None):
         self.device_map = (
@@ -175,10 +141,19 @@ class T5Siamese(T5PreTrainedModel):
         # get the final hidden states
         cos = self.cos(emb_left, emb_right)
 
-        out = {'cos': cos}
         if labels is not None:
             loss = self.loss_func(emb_left, emb_right, labels)
-            out['loss'] = loss
 
-        return out
+            return T5SiameseModelOutput(
+                loss=loss,
+                cos=cos,
+                left_embedding_vector=emb_left,
+                right_embedding_vector=emb_right
+            )
+
+        return T5SiameseModelOutput(
+            cos=cos,
+            left_embedding_vector=emb_left,
+            right_embedding_vector=emb_right
+        )
 

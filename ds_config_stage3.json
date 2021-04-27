@@ -21,7 +21,8 @@
     "stage3_prefetch_bucket_size": 200000,
     "stage3_param_persitance_threshold": 100000,
     "reduce_bucket_size": 3000000,
-    "sub_group_size": 1e6
+    "sub_group_size": 1e6,
+    "stage3_gather_fp16_weights_on_model_save": true
   },
 
   "optimizer": {

@@ -18,11 +18,12 @@ import os
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
-os.remove
+
 import torch
 import transformers
 from transformers import (
     AutoConfig,
+    T5Tokenizer,
     HfArgumentParser,
     MBartTokenizer,
     Seq2SeqTrainer,
@@ -210,8 +211,8 @@ def main():
     #     config=config,
     #     cache_dir=model_args.cache_dir,
     # )
-
-    tokenizer, model = T5Siamese.from_pretrained(model_args.model_name_or_path, with_tokenizer=True)
+    tokenizer = T5Tokenizer.from_pretrained(model_args.model_name_or_path)
+    model = T5Siamese.from_pretrained(model_args.model_name_or_path)
     # use task specific params
     use_task_specific_params(model, data_args.task)
 
